@@ -1,48 +1,44 @@
-{
-  "expo": {
-    "name": "stamponit",
-    "slug": "stamponit",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "stamponit",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
-        }
-      ]
-    ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    }
-  }
+import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+
+export default function App() {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>
+      <Text style={{ fontSize: 28, marginBottom: 20 }}>
+        StampOnIt
+      </Text>
+
+      <TextInput
+        placeholder="Email"
+        style={{
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 12,
+        }}
+      />
+
+      <TextInput
+        placeholder="Password"
+        secureTextEntry
+        style={{
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 20,
+        }}
+      />
+
+      <TouchableOpacity
+        style={{
+          backgroundColor: '#000',
+          padding: 15,
+          borderRadius: 8,
+        }}
+      >
+        <Text style={{ color: '#fff', textAlign: 'center' }}>
+          Login
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
