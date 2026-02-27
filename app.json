@@ -1,44 +1,9 @@
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-
-export default function App() {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>
-      <Text style={{ fontSize: 28, marginBottom: 20 }}>
-        StampOnIt
-      </Text>
-
-      <TextInput
-        placeholder="Email"
-        style={{
-          borderWidth: 1,
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 12,
-        }}
-      />
-
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        style={{
-          borderWidth: 1,
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 20,
-        }}
-      />
-
-      <TouchableOpacity
-        style={{
-          backgroundColor: '#000',
-          padding: 15,
-          borderRadius: 8,
-        }}
-      >
-        <Text style={{ color: '#fff', textAlign: 'center' }}>
-          Login
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+{
+  "expo": {
+    "name": "stamponit",
+    "slug": "stamponit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"]
+  }
 }
