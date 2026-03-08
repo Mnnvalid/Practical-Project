@@ -12,50 +12,147 @@ type Checkin = {
 
 export default function Passport() {
    const [checkins, setCheckins] = useState<Checkin[]>([]);
+   const [approvedMissions, setApprovedMissions] = useState(0);
+   const [missions, setMissions] = useState<any[]>([]);
+
+   const columns = 2;
 
    useEffect(() => {
       fetchApproved();
    }, []);
+      const fetchApproved = async () => {
+         const q = query(
+            collection(db, "checkins"),
+            where("status", "==", "approved"),
+         );
 
-   const fetchApproved = async () => {
-      const q = query(
-         collection(db, "checkins"),
-         where("status", "==", "approved"),
-      );
+         const snapshot = await getDocs(q);
 
-      const snapshot = await getDocs(q);
+         const results: Checkin[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
 
-      const results: Checkin[] = snapshot.docs.map((doc) => {
-         const data = doc.data();
+            return {
+               id: doc.id,
+               imageUrl: data.imageUrl,
+               status: data.status,
+               createdAt: data.createdAt,
+            };
+         });
 
-         return {
-            id: doc.id,
-            imageUrl: data.imageUrl,
-            status: data.status,
-            createdAt: data.createdAt,
+         setCheckins(results);
+      };
+
+   useEffect(() => {
+         const fetchApprovedMissions = async () => {
+            const q = query(
+               collection(db, "missionSubmissions"),
+               where("status", "==", "approved"),
+            );
+
+            const snapshot = await getDocs(q);
+            setApprovedMissions(snapshot.size);
          };
-      });
 
-      setCheckins(results);
-   };
+         fetchApprovedMissions();
+      }, []);
+
+   const totalProgress = checkins.length + approvedMissions;
+   const allBadges = [...checkins, ...missions];
+   
+   useEffect(() => {
+      const fetchMissions = async () => {
+         const q = query(
+            collection(db, "missionSubmissions"),
+            where("status", "==", "approved")
+         );
+
+         const snapshot = await getDocs(q);
+
+         const results = snapshot.docs.map((doc) => {
+            const data = doc.data();
+
+            return {
+               id: doc.id,
+               createdAt: data.approvedAt,
+               missionTitle: data.missionTitle,
+               type: "mission",
+            };
+         });
+
+         setMissions(results);
+      };
+
+      fetchMissions();
+   }, []);
+
 
    return (
       <View style={styles.container}>
-         <Text style={styles.title}>My Passport</Text>
-         <Text style={styles.count}>Total Stamps: {checkins.length}</Text>
-         <Text style={styles.level}>Level: {getLevel(checkins.length)}</Text>
+         {/* ===== PROFILE CARD ===== */}
+         <View style={styles.profileCard}>
+            <View style={styles.avatar}>
+               <Text style={{ fontSize: 30 }}>👤</Text>
+            </View>
+
+            <View style={{ marginLeft: 15 }}>
+               <Text style={styles.username}>Guest User</Text>
+               <Text style={styles.subTag}>{getLevel(checkins.length)}</Text>
+            </View>
+         </View>
+         {/* ===== JOURNEY CARD ===== */}
+         <View style={styles.journeyCard}>
+            <Text style={styles.journeyTitle}>เส้นทางนักผจญภัย</Text>
+
+            <Text style={styles.bigNumber}>
+               {totalProgress}
+               <Text style={{ fontSize: 16 }}>/15</Text>
+            </Text>
+
+            <View style={styles.progressBar}>
+               <View
+                  style={[
+                     styles.progressFill,
+                     { width: `${(totalProgress / 15) * 100}%` },
+                  ]}
+               />
+            </View>
+         </View>
+         {/* ===== STAMP SECTION ===== */}
+         <Text style={styles.sectionTitle}>
+            📍 ตราประทับของคุณ ({totalProgress})
+         </Text>
 
          <FlatList
-            data={checkins}
+            key={columns}
+            numColumns={columns}
+            data={allBadges}
             keyExtractor={(item) => item.id}
-            ListEmptyComponent={
-               <Text style={{ textAlign: "center", marginTop: 40 }}>
-                  No approved stamps yet 🌿
-               </Text>
-            }
-            renderItem={({ item }) => (
-               <Image source={{ uri: item.imageUrl }} style={styles.image} />
-            )}
+            columnWrapperStyle={{ justifyContent: "space-between" }}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            renderItem={({ item }) => {
+               const visitDate = item.createdAt?.toDate?.();
+
+               return (
+                  <View style={styles.verticalStamp}>
+                     <Image
+                        source={
+                           item.type === "mission"
+                           ? require("../../assets/images/mission_stamp.png")
+                           : require("../../assets/images/checkin_stamp.png")
+                        }
+                        style={styles.verticalBadge}
+                     />
+
+                     <Text style={styles.verticalParkName}>
+                        {item.missionTitle || "อุทยานแห่งชาติเขาใหญ่"}
+                     </Text>
+
+                     <Text style={styles.verticalDate}>
+                        📅 {visitDate?.toLocaleDateString("th-TH")}
+                     </Text>
+                  </View>
+               );
+            }}
          />
       </View>
    );
@@ -64,12 +161,6 @@ export default function Passport() {
 const styles = StyleSheet.create({
    container: { flex: 1, padding: 20, backgroundColor: "#fff" },
    title: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
-   image: {
-      width: 120,
-      height: 120,
-      marginBottom: 15,
-      borderRadius: 10,
-   },
    count: {
       fontSize: 16,
       marginBottom: 5,
@@ -80,6 +171,100 @@ const styles = StyleSheet.create({
       fontWeight: "600",
       marginBottom: 20,
       color: "#2e7d32",
+   },
+   profileCard: {
+      backgroundColor: "#f4f4f4",
+      borderRadius: 20,
+      padding: 15,
+      flexDirection: "row",
+      alignItems: "center",
+   },
+
+   avatar: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: "#e0f2e9",
+      justifyContent: "center",
+      alignItems: "center",
+   },
+
+   username: {
+      fontSize: 18,
+      fontWeight: "bold",
+   },
+
+   subTag: {
+      marginTop: 5,
+      color: "#2e7d32",
+   },
+
+   journeyCard: {
+      backgroundColor: "#1e7f3f",
+      borderRadius: 20,
+      padding: 20,
+      marginTop: 20,
+   },
+
+   journeyTitle: {
+      color: "#fff",
+      fontWeight: "bold",
+   },
+
+   bigNumber: {
+      color: "#fff",
+      fontSize: 30,
+      fontWeight: "bold",
+      marginTop: 10,
+   },
+
+   progressBar: {
+      height: 8,
+      backgroundColor: "#2f9150",
+      borderRadius: 10,
+      marginTop: 10,
+   },
+
+   progressFill: {
+      height: 8,
+      backgroundColor: "#fff",
+      borderRadius: 10,
+   },
+
+   sectionTitle: {
+      marginTop: 25,
+      marginBottom: 15,
+      fontWeight: "bold",
+      fontSize: 16,
+   },
+
+   verticalStamp: {
+      backgroundColor: "#f4f8f5",
+      borderRadius: 30,
+      padding: 15,
+      marginBottom: 15,
+      alignItems: "center",
+      width: "48%", // สำคัญมาก สำหรับ 2 คอลัมน์
+      elevation: 3,
+   },
+
+   verticalBadge: {
+      width: 80,
+      height: 80,
+   },
+
+   verticalParkName: {
+      marginTop: 10,
+      fontSize: 14,
+      fontWeight: "bold",
+      textAlign: "center",
+   },
+
+   verticalDate: {
+      marginTop: 5,
+      fontSize: 12,
+      color: "#666",
+      textAlign: "center",
    },
 });
 

@@ -19,43 +19,64 @@ type Checkin = {
 };
 
 export default function AdminScreen() {
-   const [pendingCheckins, setPendingCheckins] = useState<Checkin[]>([]);
+   const [pendingItems, setPendingItems] = useState<any[]>([]);
 
    useEffect(() => {
-      const q = query(
+      const q1 = query(
          collection(db, "checkins"),
-         where("status", "==", "pending"),
+         where("status", "==", "pending")
       );
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-         const results: Checkin[] = snapshot.docs.map((doc) => {
-            const data = doc.data();
+      const q2 = query(
+         collection(db, "missionSubmissions"),
+         where("status", "==", "pending")
+      );
 
-            return {
-               id: doc.id,
-               imageUrl: data.imageUrl,
-               status: data.status,
-               createdAt: data.createdAt,
-               userEmail: data.userEmail,
-            };
-         });
+      const unsub1 = onSnapshot(q1, (snapshot) => {
+         const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            type: "checkin",
+            ...doc.data(),
+         }));
 
-         setPendingCheckins(results);
+         setPendingItems((prev) => [...data, ...prev]);
       });
 
-      return () => unsubscribe();
+      const unsub2 = onSnapshot(q2, (snapshot) => {
+         const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            type: "mission",
+            ...doc.data(),
+         }));
+
+         setPendingItems((prev) => [...prev, ...data]);
+      });
+
+      return () => {
+         unsub1();
+         unsub2();
+      };
    }, []);
 
-   const approveCheckin = async (docId: string) => {
-      const ref = doc(db, "checkins", docId);
+   const approveItem = async (item: any) => {
+      const ref = doc(
+         db,
+         item.type === "checkin" ? "checkins" : "missionSubmissions",
+         item.id
+      );
 
       await updateDoc(ref, {
          status: "approved",
+         approvedAt: new Date(),
       });
    };
 
-   const rejectCheckin = async (docId: string) => {
-      const ref = doc(db, "checkins", docId);
+   const rejectItem = async (item: any) => {
+      const ref = doc(
+         db,
+         item.type === "checkin" ? "checkins" : "missionSubmissions",
+         item.id
+      );
 
       await updateDoc(ref, {
          status: "rejected",
@@ -67,31 +88,34 @@ export default function AdminScreen() {
          <Text style={styles.title}>Admin Approval</Text>
 
          <FlatList
-            data={pendingCheckins}
+            data={pendingItems}
             keyExtractor={(item) => item.id}
-            ListEmptyComponent={<Text>No pending checkins 🎉</Text>}
+            ListEmptyComponent={<Text>No pending items 🎉</Text>}
             renderItem={({ item }) => (
                <View style={styles.card}>
                   <Image source={{ uri: item.imageUrl }} style={styles.image} />
 
-                  <Text>Uploaded by: {item.userEmail}</Text>
-
                   <Text>
-                     Date:{" "}
-                     {item.createdAt?.toDate
-                        ? item.createdAt.toDate().toLocaleString()
-                        : "No date"}
+                     {item.type === "mission"
+                        ? "🎯 Mission Submission"
+                        : "📷 Park Check-in"}
                   </Text>
+
+                  <Text>User: {item.userEmail}</Text>
+
+                  {item.missionTitle && (
+                     <Text>Mission: {item.missionTitle}</Text>
+                  )}
 
                   <View style={{ marginTop: 10 }}>
                      <Button
                         title="Approve"
-                        onPress={() => approveCheckin(item.id)}
+                        onPress={() => approveItem(item)}
                      />
                      <View style={{ height: 10 }} />
                      <Button
                         title="Reject"
-                        onPress={() => rejectCheckin(item.id)}
+                        onPress={() => rejectItem(item)}
                      />
                   </View>
                </View>
@@ -113,12 +137,12 @@ const styles = StyleSheet.create({
       marginBottom: 20,
    },
    card: {
-      marginBottom: 20,
+      marginBottom: 25,
    },
    image: {
       width: "100%",
       height: 200,
-      marginBottom: 10,
       borderRadius: 10,
+      marginBottom: 10,
    },
 });
