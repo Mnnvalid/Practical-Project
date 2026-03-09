@@ -20,50 +20,50 @@ export default function Passport() {
    useEffect(() => {
       fetchApproved();
    }, []);
-      const fetchApproved = async () => {
+   const fetchApproved = async () => {
+      const q = query(
+         collection(db, "checkins"),
+         where("status", "==", "approved"),
+      );
+
+      const snapshot = await getDocs(q);
+
+      const results: Checkin[] = snapshot.docs.map((doc) => {
+         const data = doc.data();
+
+         return {
+            id: doc.id,
+            imageUrl: data.imageUrl,
+            status: data.status,
+            createdAt: data.createdAt,
+         };
+      });
+
+      setCheckins(results);
+   };
+
+   useEffect(() => {
+      const fetchApprovedMissions = async () => {
          const q = query(
-            collection(db, "checkins"),
+            collection(db, "missionSubmissions"),
             where("status", "==", "approved"),
          );
 
          const snapshot = await getDocs(q);
-
-         const results: Checkin[] = snapshot.docs.map((doc) => {
-            const data = doc.data();
-
-            return {
-               id: doc.id,
-               imageUrl: data.imageUrl,
-               status: data.status,
-               createdAt: data.createdAt,
-            };
-         });
-
-         setCheckins(results);
+         setApprovedMissions(snapshot.size);
       };
 
-   useEffect(() => {
-         const fetchApprovedMissions = async () => {
-            const q = query(
-               collection(db, "missionSubmissions"),
-               where("status", "==", "approved"),
-            );
-
-            const snapshot = await getDocs(q);
-            setApprovedMissions(snapshot.size);
-         };
-
-         fetchApprovedMissions();
-      }, []);
+      fetchApprovedMissions();
+   }, []);
 
    const totalProgress = checkins.length + approvedMissions;
    const allBadges = [...checkins, ...missions];
-   
+
    useEffect(() => {
       const fetchMissions = async () => {
          const q = query(
             collection(db, "missionSubmissions"),
-            where("status", "==", "approved")
+            where("status", "==", "approved"),
          );
 
          const snapshot = await getDocs(q);
@@ -84,7 +84,6 @@ export default function Passport() {
 
       fetchMissions();
    }, []);
-
 
    return (
       <View style={styles.container}>
@@ -109,17 +108,33 @@ export default function Passport() {
             </Text>
 
             <View style={styles.progressBar}>
+               {/* Check-in */}
                <View
                   style={[
-                     styles.progressFill,
-                     { width: `${(totalProgress / 15) * 100}%` },
+                     styles.checkinProgress,
+                     { width: `${(checkins.length / 15) * 100}%` },
                   ]}
                />
+
+               {/* Mission */}
+               <View
+                  style={[
+                     styles.missionProgress,
+                     { width: `${(approvedMissions / 15) * 100}%` },
+                  ]}
+               />
+            </View>
+
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+               <Text style={{ color: "#f97316", marginRight: 15 }}>
+                  ● Check-in
+               </Text>
+               <Text style={{ color: "#facc15" }}>● Mission</Text>
             </View>
          </View>
          {/* ===== STAMP SECTION ===== */}
          <Text style={styles.sectionTitle}>
-            📍 ตราประทับของคุณ ({totalProgress})
+            🚩 ตราประทับของคุณ ({totalProgress})
          </Text>
 
          <FlatList
@@ -137,8 +152,8 @@ export default function Passport() {
                      <Image
                         source={
                            item.type === "mission"
-                           ? require("../../assets/images/mission_stamp.png")
-                           : require("../../assets/images/checkin_stamp.png")
+                              ? require("../../assets/images/mission_stamp.png")
+                              : require("../../assets/images/checkin_stamp.png")
                         }
                         style={styles.verticalBadge}
                      />
@@ -219,16 +234,22 @@ const styles = StyleSheet.create({
    },
 
    progressBar: {
+      flexDirection: "row",
       height: 8,
-      backgroundColor: "#2f9150",
+      backgroundColor: "#dfe3e1",
       borderRadius: 10,
       marginTop: 10,
+      overflow: "hidden",
+   },
+   
+   checkinProgress: {
+      height: 8,
+      backgroundColor: "#f97316", // orange
    },
 
-   progressFill: {
+   missionProgress: {
       height: 8,
-      backgroundColor: "#fff",
-      borderRadius: 10,
+      backgroundColor: "#facc15", // yellow
    },
 
    sectionTitle: {

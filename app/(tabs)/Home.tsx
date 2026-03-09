@@ -452,13 +452,6 @@ export default function Home() {
                </View>
             </View>
          </ScrollView>
-
-         {/* 📍 BOTTOM TAB MOCK */}
-         <View style={styles.bottomTab}>
-            <Text>หน้าหลัก</Text>
-            <Text>แผนที่</Text>
-            <Text>พาสปอร์ต</Text>
-         </View>
       </View>
    );
 }

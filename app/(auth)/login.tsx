@@ -42,7 +42,7 @@ export default function LoginScreen() {
    };
 
    return (
-      <View style={{ flex: 1, padding: 24, justifyContent: "center" }}>
+      <View style={{ flex: 1, padding: 24, justifyContent: "center", backgroundColor: "white" }}>
          <Text
             style={{
                fontSize: 28,
@@ -58,12 +58,14 @@ export default function LoginScreen() {
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
+            placeholderTextColor="#9ca3af"
             style={{
                borderWidth: 1,
                borderColor: "#e5e7eb",
                borderRadius: 12,
                padding: 14,
                marginBottom: 12,
+               color: "black",
             }}
          />
 
@@ -73,12 +75,14 @@ export default function LoginScreen() {
                value={password}
                onChangeText={setPassword}
                secureTextEntry={!showPassword}
+               placeholderTextColor="#9ca3af"
                style={{
                   borderWidth: 1,
                   borderColor: "#e5e7eb",
                   borderRadius: 12,
                   padding: 14,
                   paddingRight: 45, // เว้นที่ให้ไอคอน
+                  color: "black",
                }}
             />
 
