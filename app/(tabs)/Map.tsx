@@ -7,6 +7,7 @@ import { db } from "../../firebase";
 const auth = getAuth();
 
 export default function MapPage() {
+   const user = auth.currentUser
    const [parks, setParks] = useState<any[]>([]);
    const [approvedParks, setApprovedParks] = useState<string[]>([]);
    const [selectedPark, setSelectedPark] = useState<any>(null);

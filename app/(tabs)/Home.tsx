@@ -1,5 +1,6 @@
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
    addDoc,
@@ -38,6 +39,7 @@ export default function Home() {
    const [showCampaignDetail, setShowCampaignDetail] = useState(false);
    const [selectedMission, setSelectedMission] = useState<any>(null);
    const [approvedMissions, setApprovedMissions] = useState<string[]>([]);
+   const [canCheckinLocation, setCanCheckinLocation] = useState(false);
 
    // ===============================
    // 2️⃣ DATA (ข้อมูล)
@@ -75,6 +77,7 @@ export default function Home() {
             collection(db, "checkins"),
             where("userId", "==", user.uid),
             where("parkId", "==", "khaoyai"),
+            where("status", "==", "approved"),
          );
 
          const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
@@ -171,6 +174,30 @@ export default function Home() {
       }
    };
 
+   const handleAutoCheckin = async () => {
+      const user = auth.currentUser;
+
+      if (!user) {
+         alert("กรุณา login ก่อน");
+         return;
+      }
+
+      try {
+         await addDoc(collection(db, "checkins"), {
+            parkId: "khaoyai",
+            userId: user.uid,
+            userEmail: user.email,
+            status: "approved",
+            type: "location",
+            createdAt: serverTimestamp(),
+         });
+
+         alert("📍 Check-in สำเร็จ!");
+      } catch (error) {
+         console.log("AUTO CHECKIN ERROR:", error);
+      }
+   };
+
    const handleCampaignUpload = async () => {
       if (!selectedMission) {
          alert("กรุณาเลือก mission");
@@ -245,6 +272,60 @@ export default function Home() {
       } catch (error) {
          console.log("MISSION UPLOAD ERROR:", error);
       }
+   };
+
+   useEffect(() => {
+      checkLocation();
+   }, []);
+   const checkLocation = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+         alert("ต้องอนุญาต location ก่อน");
+         return;
+      }
+      
+      const location = await Location.getCurrentPositionAsync({});
+      console.log("My location:", location.coords.latitude, location.coords.longitude);
+      // const parkLat = 14.439;
+      // const parkLng = 101.372;
+
+      const parkLat = location.coords.latitude;
+      const parkLng = location.coords.longitude;
+
+      const distance = getDistance(
+         location.coords.latitude,
+         location.coords.longitude,
+         parkLat,
+         parkLng,
+      );
+
+      if (distance < 0.5) {
+         setCanCheckinLocation(true);
+      }
+   };
+
+   const getDistance = (
+      lat1: number,
+      lon1: number,
+      lat2: number,
+      lon2: number,
+   ) => {
+      const R = 6371; // radius of earth (km)
+
+      const dLat = (lat2 - lat1) * (Math.PI / 180);
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+
+      const a =
+         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+         Math.cos(lat1 * (Math.PI / 180)) *
+            Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c; // distance in km
    };
 
    // ===============================
@@ -437,6 +518,23 @@ export default function Home() {
                            ไฮไลต์: {park.highlight}
                         </Text>
                      </View>
+                  )}
+
+                  {canCheckinLocation && !myCheckin && (
+                     <TouchableOpacity
+                        style={{
+                           backgroundColor: "#1e7f3f",
+                           padding: 10,
+                           borderRadius: 10,
+                           marginTop: 10,
+                           alignItems: "center",
+                        }}
+                        onPress={handleAutoCheckin}
+                     >
+                        <Text style={{ color: "white", fontWeight: "bold" }}>
+                           📍 Auto Check-in
+                        </Text>
+                     </TouchableOpacity>
                   )}
 
                   {myCheckin?.status !== "approved" && (

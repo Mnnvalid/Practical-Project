@@ -1,21 +1,48 @@
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { FlatList, Image, StyleSheet, Text, View } from "react-native";
-import { db } from "../../firebase";
+import {
+   FlatList,
+   Image,
+   StyleSheet,
+   Text,
+   TouchableOpacity,
+   View,
+} from "react-native";
+import { auth, db } from "../../firebase";
 
 type Checkin = {
    id: string;
    imageUrl: string;
-   status: string;
    createdAt: any;
+   type: "checkin";
+   status: "approved" | "pending";
 };
 
 export default function Passport() {
+   const user = auth.currentUser;
+
    const [checkins, setCheckins] = useState<Checkin[]>([]);
    const [approvedMissions, setApprovedMissions] = useState(0);
    const [missions, setMissions] = useState<any[]>([]);
+   const [userData, setUserData] = useState<any>(null);
 
    const columns = 2;
+
+   useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+         if (user) {
+            loadUserData(user.uid);
+         } else {
+            setUserData(null);
+            setCheckins([]);
+         }
+      });
+
+      return unsubscribe;
+   }, []);
 
    useEffect(() => {
       fetchApproved();
@@ -24,6 +51,7 @@ export default function Passport() {
       const q = query(
          collection(db, "checkins"),
          where("status", "==", "approved"),
+         where("userId", "==", user?.uid)
       );
 
       const snapshot = await getDocs(q);
@@ -36,6 +64,7 @@ export default function Passport() {
             imageUrl: data.imageUrl,
             status: data.status,
             createdAt: data.createdAt,
+            type: data.type,
          };
       });
 
@@ -47,6 +76,7 @@ export default function Passport() {
          const q = query(
             collection(db, "missionSubmissions"),
             where("status", "==", "approved"),
+            where("userId", "==", user?.uid)
          );
 
          const snapshot = await getDocs(q);
@@ -56,7 +86,9 @@ export default function Passport() {
       fetchApprovedMissions();
    }, []);
 
-   const totalProgress = checkins.length + approvedMissions;
+   const approvedCheckins = checkins.filter((c) => c.status === "approved");
+
+   const totalProgress = approvedCheckins.length + missions.length;
    const allBadges = [...checkins, ...missions];
 
    useEffect(() => {
@@ -64,6 +96,7 @@ export default function Passport() {
          const q = query(
             collection(db, "missionSubmissions"),
             where("status", "==", "approved"),
+            where("userId", "==", user?.uid)
          );
 
          const snapshot = await getDocs(q);
@@ -85,19 +118,48 @@ export default function Passport() {
       fetchMissions();
    }, []);
 
+   const handleLogout = async () => {
+      try {
+         await signOut(auth);
+         router.replace("/(auth)/Login");
+      } catch (error) {
+         console.log("Logout error:", error);
+      }
+   };
+
+   const loadUserData = async (uid: string) => {
+      const q = query(collection(db, "checkins"), where("userId", "==", uid));
+
+      const snapshot = await getDocs(q);
+
+      const data = snapshot.docs.map((doc) => ({
+         id: doc.id,
+         ...doc.data(),
+      })) as Checkin[];
+
+      setCheckins(data);
+   };
+
    return (
       <View style={styles.container}>
          {/* ===== PROFILE CARD ===== */}
          <View style={styles.profileCard}>
-            <View style={styles.avatar}>
-               <Text style={{ fontSize: 30 }}>👤</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+               <View style={styles.avatar}>
+                  <Text style={{ fontSize: 30 }}>👤</Text>
+               </View>
+
+               <View style={{ marginLeft: 15 }}>
+                  <Text style={styles.username}>{user?.email}</Text>
+                  <Text style={styles.subTag}>{getLevel(checkins.length)}</Text>
+               </View>
             </View>
 
-            <View style={{ marginLeft: 15 }}>
-               <Text style={styles.username}>Guest User</Text>
-               <Text style={styles.subTag}>{getLevel(checkins.length)}</Text>
-            </View>
+            <TouchableOpacity onPress={handleLogout} style={{ padding: 8 }}>
+               <Ionicons name="log-out-outline" size={24} color="#e53935" />
+            </TouchableOpacity>
          </View>
+
          {/* ===== JOURNEY CARD ===== */}
          <View style={styles.journeyCard}>
             <Text style={styles.journeyTitle}>เส้นทางนักผจญภัย</Text>
@@ -112,7 +174,7 @@ export default function Passport() {
                <View
                   style={[
                      styles.checkinProgress,
-                     { width: `${(checkins.length / 15) * 100}%` },
+                     { width: `${(approvedCheckins.length / 15) * 100}%` },
                   ]}
                />
 
@@ -132,6 +194,7 @@ export default function Passport() {
                <Text style={{ color: "#facc15" }}>● Mission</Text>
             </View>
          </View>
+
          {/* ===== STAMP SECTION ===== */}
          <Text style={styles.sectionTitle}>
             🚩 ตราประทับของคุณ ({totalProgress})
@@ -193,6 +256,7 @@ const styles = StyleSheet.create({
       padding: 15,
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
    },
 
    avatar: {
@@ -241,7 +305,7 @@ const styles = StyleSheet.create({
       marginTop: 10,
       overflow: "hidden",
    },
-   
+
    checkinProgress: {
       height: 8,
       backgroundColor: "#f97316", // orange
