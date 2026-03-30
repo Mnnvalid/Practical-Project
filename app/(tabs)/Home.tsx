@@ -44,14 +44,37 @@ export default function Home() {
    // ===============================
    // 2️⃣ DATA (ข้อมูล)
    // ===============================
-   const park = {
-      name: "อุทยานแห่งชาติเขาใหญ่",
-      province: "นครราชสีมา - ภาคตะวันออกเฉียงเหนือ",
-      quote: "Still First, Still Standing, Still Thriving.",
-      bestTime: "สิงหาคม - กุมภาพันธ์",
-      highlight:
-         "น้ำตกเหวนรก, น้ำตกเหวสุวัต, น้ำตกผากล้วยไม้, จุดชมวิวผาเดียวดาย",
+   type Park = {
+      id: string;
+      name: string;
+      province: string;
+      region: string;
+      lat: number;
+      lng: number;
+      quote: string;
+      bestTime: string;
+      highlight: string;
    };
+
+   const parks: Park[] = [
+      {
+         id: "khaoyai",
+         name: "อุทยานแห่งชาติเขาใหญ่",
+         province: "นครราชสีมา",
+         region: "ตะวันออกเฉียงเหนือ",
+         lat: 14.311,
+         lng: 101.53,
+         quote: "Still First, Still Standing, Still Thriving.",
+         bestTime: "สิงหาคม - กุมภาพันธ์",
+         highlight:
+            "น้ำตกเหวนรก, น้ำตกเหวสุวัต, น้ำตกผากล้วยไม้, จุดชมวิวผาเดียวดาย",
+      },
+   ];
+
+   const filteredParks =
+      selectedRegion === "ทั้งหมด"
+         ? parks
+         : parks.filter((p) => p.region === selectedRegion);
 
    const campaign = {
       id: "camp_khaoyai_01",
@@ -111,6 +134,10 @@ export default function Home() {
       });
 
       return unsubscribe;
+   }, []);
+
+   useEffect(() => {
+      checkLocation();
    }, []);
 
    // ===============================
@@ -176,7 +203,6 @@ export default function Home() {
 
    const handleAutoCheckin = async () => {
       const user = auth.currentUser;
-
       if (!user) {
          alert("กรุณา login ก่อน");
          return;
@@ -203,33 +229,27 @@ export default function Home() {
          alert("กรุณาเลือก mission");
          return;
       }
-
       uploadMission(selectedMission);
    };
 
    const markMissionComplete = async (missionId: string) => {
       const mission = campaign.missions.find((m) => m.id === missionId);
-
       if (!mission) {
          alert("ไม่พบ mission");
          return;
       }
-
       uploadMission(mission);
    };
 
    const uploadMission = async (mission: any) => {
       const user = auth.currentUser;
-
       if (!user) {
          alert("กรุณา login ก่อน");
          return;
       }
-
       try {
          const permission =
             await ImagePicker.requestMediaLibraryPermissionsAsync();
-
          if (!permission.granted) {
             alert("ต้องอนุญาตเข้าถึงรูปภาพก่อน");
             return;
@@ -243,14 +263,11 @@ export default function Home() {
          if (result.canceled) return;
 
          const imageUri = result.assets[0].uri;
-
          const response = await fetch(imageUri);
          const blob = await response.blob();
-
          const storageRef = ref(storage, `missions/${Date.now()}.jpg`);
 
          await uploadBytes(storageRef, blob);
-
          const downloadURL = await getDownloadURL(storageRef);
 
          await addDoc(collection(db, "missionSubmissions"), {
@@ -267,31 +284,29 @@ export default function Home() {
          });
 
          alert("ส่งภารกิจสำเร็จ 🎉");
-
          setSelectedMission(null);
       } catch (error) {
          console.log("MISSION UPLOAD ERROR:", error);
       }
    };
 
-   useEffect(() => {
-      checkLocation();
-   }, []);
    const checkLocation = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-
       if (status !== "granted") {
          alert("ต้องอนุญาต location ก่อน");
          return;
       }
-      
-      const location = await Location.getCurrentPositionAsync({});
-      console.log("My location:", location.coords.latitude, location.coords.longitude);
-      // const parkLat = 14.439;
-      // const parkLng = 101.372;
 
-      const parkLat = location.coords.latitude;
-      const parkLng = location.coords.longitude;
+      const location = await Location.getCurrentPositionAsync({});
+      console.log(
+         "My location:",
+         location.coords.latitude,
+         location.coords.longitude,
+      );
+
+      // พิกัดจากอุทยานแรกในลิสต์ (เขาใหญ่)
+      const parkLat = parks[0].lat;
+      const parkLng = parks[0].lng;
 
       const distance = getDistance(
          location.coords.latitude,
@@ -300,7 +315,7 @@ export default function Home() {
          parkLng,
       );
 
-      if (distance < 0.5) {
+      if (distance < 500) {
          setCanCheckinLocation(true);
       }
    };
@@ -312,19 +327,15 @@ export default function Home() {
       lon2: number,
    ) => {
       const R = 6371; // radius of earth (km)
-
       const dLat = (lat2 - lat1) * (Math.PI / 180);
       const dLon = (lon2 - lon1) * (Math.PI / 180);
-
       const a =
          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
          Math.cos(lat1 * (Math.PI / 180)) *
             Math.cos(lat2 * (Math.PI / 180)) *
             Math.sin(dLon / 2) *
             Math.sin(dLon / 2);
-
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
       return R * c; // distance in km
    };
 
@@ -332,8 +343,9 @@ export default function Home() {
    // 5️⃣ UI (การแสดงผล)
    // ===============================
    return (
-      <View style={styles.container}>
-         <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+         <View style={styles.container}>
+            <Text style={styles.header}>Explore National Parks</Text>
             {/* 🔍 SEARCH BAR */}
             <TextInput
                placeholder="ค้นหาอุทยาน or จังหวัด..."
@@ -342,13 +354,19 @@ export default function Home() {
             />
 
             {/* 🟢 REGION BUTTONS */}
-            <ScrollView
-               horizontal
-               showsHorizontalScrollIndicator={false}
-               contentContainerStyle={styles.regionContainer}
-            >
-               {["ทั้งหมด", "เหนือ", "ตะวันออกเฉียงเหนือ", "กลาง", "ใต้"].map(
-                  (region) => (
+            <View>
+               <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.regionContainer}
+               >
+                  {[
+                     "ทั้งหมด",
+                     "เหนือ",
+                     "ตะวันออกเฉียงเหนือ",
+                     "กลาง",
+                     "ใต้",
+                  ].map((region) => (
                      <TouchableOpacity
                         key={region}
                         style={[
@@ -367,19 +385,19 @@ export default function Home() {
                            {region}
                         </Text>
                      </TouchableOpacity>
-                  ),
-               )}
-            </ScrollView>
+                  ))}
+               </ScrollView>
+            </View>
 
             {/* 🟢 CAMPAIGN BANNER */}
             {!allMissionApproved ? (
                <View style={styles.banner}>
                   <Text style={styles.hotLabel}>HOT CAMPAIGN</Text>
                   <Text style={styles.bannerTitle}>
-                     Check-in แลกของที่ระลึก
+                     ทำภารกิจ แลกของที่ระลึก
                   </Text>
                   <Text style={styles.bannerSub}>
-                     สะสมครบ 5 จุดยอดนิยม รับฟรีสินค้า Limited Edition!
+                     ทำภารกิจสำเร็จ รับฟรีของที่ระลึก Limited Edition!
                   </Text>
 
                   <TouchableOpacity
@@ -406,12 +424,10 @@ export default function Home() {
                         <Text style={[styles.campaignTitle, { marginTop: 10 }]}>
                            🎯 Missions
                         </Text>
-
                         {campaign.missions.map((mission) => {
                            const isApproved = approvedMissions.includes(
                               mission.id,
                            );
-
                            return (
                               <TouchableOpacity
                                  key={mission.id}
@@ -428,8 +444,7 @@ export default function Home() {
                                  }}
                               >
                                  <Text>
-                                    {isApproved ? "✅ " : ""}
-                                    🎯 {mission.title}
+                                    {isApproved ? "✅ " : ""}🎯 {mission.title}
                                  </Text>
                               </TouchableOpacity>
                            );
@@ -466,91 +481,101 @@ export default function Home() {
             {/* LIST TITLE */}
             <Text style={styles.sectionTitle}>รายชื่ออุทยานแห่งชาติ</Text>
 
-            {/* PARK CARD */}
-            <View style={styles.card}>
-               <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-               >
-                  <Image
-                     source={require("../../assets/images/khaoyai1.jpg")}
-                     style={styles.image}
-                  />
-                  <Image
-                     source={require("../../assets/images/khaoyai2.jpg")}
-                     style={styles.image}
-                  />
-                  <Image
-                     source={require("../../assets/images/khaoyai3.jpg")}
-                     style={styles.image}
-                  />
-               </ScrollView>
+            {/* PARK CARDS */}
+            {filteredParks.map((park) => (
+               <View key={park.id} style={styles.card}>
+                  <ScrollView
+                     horizontal
+                     pagingEnabled
+                     showsHorizontalScrollIndicator={false}
+                  >
+                     <Image
+                        source={require("../../assets/images/khaoyai1.jpg")}
+                        style={styles.image}
+                     />
+                     <Image
+                        source={require("../../assets/images/khaoyai2.jpg")}
+                        style={styles.image}
+                     />
+                     <Image
+                        source={require("../../assets/images/khaoyai3.jpg")}
+                        style={styles.image}
+                     />
+                  </ScrollView>
 
-               {/* ยังไม่ไป = เบลอ */}
-               {myCheckin?.status !== "approved" && (
-                  <BlurView intensity={40} style={styles.blurOverlay}>
-                     <Text style={styles.blurText}>
-                        🏆 Challenge: อัปโหลดรูปเพื่อปลดล็อค
-                     </Text>
-                  </BlurView>
-               )}
-
-               <View style={styles.cardContent}>
-                  <Text style={styles.parkName}>{park.name}</Text>
-                  <Text style={styles.province}>{park.province}</Text>
-                  <Text style={styles.quote}>"{park.quote}"</Text>
-
-                  {/* ปุ่มรายละเอียดเพิ่มเติม */}
-                  <TouchableOpacity onPress={() => setShowDetail(!showDetail)}>
-                     <Text style={styles.moreDetail}>
-                        {showDetail
-                           ? "ซ่อนรายละเอียด ▲"
-                           : "รายละเอียดเพิ่มเติม ▼"}
-                     </Text>
-                  </TouchableOpacity>
-
-                  {/* กล่องรายละเอียด */}
-                  {showDetail && (
-                     <View style={styles.detailBox}>
-                        <Text>ช่วงน่าเที่ยว: {park.bestTime}</Text>
-                        <Text style={{ marginTop: 5 }}>
-                           ไฮไลต์: {park.highlight}
-                        </Text>
-                     </View>
-                  )}
-
-                  {canCheckinLocation && !myCheckin && (
-                     <TouchableOpacity
-                        style={{
-                           backgroundColor: "#1e7f3f",
-                           padding: 10,
-                           borderRadius: 10,
-                           marginTop: 10,
-                           alignItems: "center",
-                        }}
-                        onPress={handleAutoCheckin}
-                     >
-                        <Text style={{ color: "white", fontWeight: "bold" }}>
-                           📍 Auto Check-in
-                        </Text>
-                     </TouchableOpacity>
-                  )}
-
+                  {/* ยังไม่ไป = เบลอ */}
                   {myCheckin?.status !== "approved" && (
+                     <BlurView intensity={40} style={styles.blurOverlay}>
+                        <Text style={styles.blurText}>
+                           🏆 Challenge: อัปโหลดรูปเพื่อปลดล็อค
+                        </Text>
+                     </BlurView>
+                  )}
+
+                  <View style={styles.cardContent}>
+                     <Text style={styles.parkName}>{park.name}</Text>
+                     <Text style={styles.province}>
+                        {park.province}{" "}
+                        <Text style={styles.region}>• {park.region}</Text>
+                     </Text>
+                     <Text style={{ marginTop: 15, marginBottom: 5, fontStyle: "italic", textAlign: "center" }}>
+                        "{park.quote}"
+                     </Text>
+
+                     {/* ปุ่มรายละเอียดเพิ่มเติม */}
                      <TouchableOpacity
-                        style={styles.uploadButton}
-                        onPress={handleUpload}
+                        onPress={() => setShowDetail(!showDetail)}
                      >
-                        <Text style={{ color: "#1e7f3f" }}>
-                           📷 อัปโหลดรูป Check-in
+                        <Text style={styles.moreDetail}>
+                           {showDetail
+                              ? "ซ่อนรายละเอียด ▲"
+                              : "รายละเอียดเพิ่มเติม ▼"}
                         </Text>
                      </TouchableOpacity>
-                  )}
+
+                     {/* กล่องรายละเอียด */}
+                     {showDetail && (
+                        <View style={styles.detailBox}>
+                           <Text>ช่วงน่าเที่ยว: {park.bestTime}</Text>
+                           <Text style={{ marginTop: 5 }}>
+                              ไฮไลต์: {park.highlight}
+                           </Text>
+                        </View>
+                     )}
+
+                     {/* ปุ่ม Check-in */}
+                     {canCheckinLocation && !myCheckin && (
+                        <TouchableOpacity
+                           style={{
+                              backgroundColor: "#1e7f3f",
+                              padding: 10,
+                              borderRadius: 10,
+                              marginTop: 10,
+                              alignItems: "center",
+                           }}
+                           onPress={handleAutoCheckin}
+                        >
+                           <Text style={{ color: "white", fontWeight: "bold" }}>
+                              📍 Auto Check-in
+                           </Text>
+                        </TouchableOpacity>
+                     )}
+
+                     {myCheckin?.status !== "approved" && (
+                        <TouchableOpacity
+                           style={styles.uploadButton}
+                           onPress={handleUpload}
+                        >
+                           <Text style={{ color: "#1e7f3f" }}>
+                              📷 อัปโหลดรูป Check-in
+                           </Text>
+                        </TouchableOpacity>
+                     )}
+                  </View>
                </View>
-            </View>
-         </ScrollView>
-      </View>
+            ))}
+         </View>
+      </ScrollView>
    );
 }
 
@@ -560,7 +585,14 @@ export default function Home() {
 const styles = StyleSheet.create({
    container: {
       flex: 1,
-      backgroundColor: "#f2f2f2",
+      backgroundColor: "#ffffff",
+   },
+   header: {
+      fontSize: 22,
+      fontWeight: "bold",
+      paddingHorizontal: 15,
+      paddingTop: 15, // ปรับให้พ้น Notch
+      paddingBottom: 3,
    },
    search: {
       backgroundColor: "#fff",
@@ -633,11 +665,15 @@ const styles = StyleSheet.create({
       margin: 15,
       borderRadius: 15,
       overflow: "hidden",
+      elevation: 3, // เพิ่มเงาสำหรับ Android
+      shadowColor: "#000", // เพิ่มเงาสำหรับ iOS
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
    },
    image: {
       width: screenWidth - 30,
       height: 180,
-      borderRadius: 15,
    },
    blurOverlay: {
       position: "absolute",
@@ -663,9 +699,9 @@ const styles = StyleSheet.create({
       color: "gray",
       marginTop: 3,
    },
-   quote: {
-      marginTop: 5,
-      fontStyle: "italic",
+   region: {
+      color: "#6c8874",
+      fontWeight: "bold",
    },
    detailBox: {
       backgroundColor: "#e7f5ec",
@@ -681,14 +717,6 @@ const styles = StyleSheet.create({
       borderRadius: 10,
       marginTop: 15,
       alignItems: "center",
-   },
-   bottomTab: {
-      flexDirection: "row",
-      justifyContent: "space-around",
-      padding: 15,
-      backgroundColor: "#fff",
-      borderTopWidth: 1,
-      borderColor: "#ddd",
    },
    moreDetail: {
       color: "#2c9c4b",

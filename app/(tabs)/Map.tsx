@@ -7,7 +7,7 @@ import { db } from "../../firebase";
 const auth = getAuth();
 
 export default function MapPage() {
-   const user = auth.currentUser
+   const user = auth.currentUser;
    const [parks, setParks] = useState<any[]>([]);
    const [approvedParks, setApprovedParks] = useState<string[]>([]);
    const [selectedPark, setSelectedPark] = useState<any>(null);
@@ -46,10 +46,14 @@ export default function MapPage() {
 
    return (
       <TouchableOpacity
-         style={{ flex: 1 }}
+         style={{ flex: 1, padding: 15, backgroundColor: "#fff" }}
          activeOpacity={1}
          onPress={() => setSelectedPark(null)}
       >
+         <Text style={{ fontSize: 22, fontWeight: "bold", marginBottom: 20 }}>
+            Park Map
+         </Text>
+
          <View
             style={{
                flex: 1,

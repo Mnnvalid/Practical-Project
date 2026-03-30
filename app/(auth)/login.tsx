@@ -5,8 +5,20 @@ import {
    getAuth,
    signInWithEmailAndPassword,
 } from "firebase/auth";
+import {
+   collection,
+   getDocs,
+   query,
+   where,
+   doc,
+   getDoc,
+   updateDoc,
+   setDoc,
+} from "firebase/firestore";
 import { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import { db } from "../../firebase";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function LoginScreen() {
    const router = useRouter();
@@ -32,7 +44,19 @@ export default function LoginScreen() {
             await signInWithEmailAndPassword(auth, email, password);
          } else {
             // 🔥 REGISTER
-            await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(
+               auth,
+               email,
+               password,
+            );
+
+            const user = userCredential.user;
+
+            await setDoc(doc(db, "users", user.uid), {
+               email: user.email,
+               photoURL: "",
+               createdAt: new Date(),
+            });
          }
 
          router.replace("/"); // ไปหน้า Home
@@ -42,7 +66,14 @@ export default function LoginScreen() {
    };
 
    return (
-      <View style={{ flex: 1, padding: 24, justifyContent: "center", backgroundColor: "white" }}>
+      <View
+         style={{
+            flex: 1,
+            padding: 24,
+            justifyContent: "center",
+            backgroundColor: "white",
+         }}
+      >
          <Text
             style={{
                fontSize: 28,

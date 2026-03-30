@@ -1,11 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+   collection,
+   doc,
+   getDoc,
+   getDocs,
+   query,
+   setDoc,
+   where,
+} from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import { useEffect, useState } from "react";
 import {
    FlatList,
    Image,
+   ScrollView,
    StyleSheet,
    Text,
    TouchableOpacity,
@@ -51,7 +62,7 @@ export default function Passport() {
       const q = query(
          collection(db, "checkins"),
          where("status", "==", "approved"),
-         where("userId", "==", user?.uid)
+         where("userId", "==", user?.uid),
       );
 
       const snapshot = await getDocs(q);
@@ -76,7 +87,7 @@ export default function Passport() {
          const q = query(
             collection(db, "missionSubmissions"),
             where("status", "==", "approved"),
-            where("userId", "==", user?.uid)
+            where("userId", "==", user?.uid),
          );
 
          const snapshot = await getDocs(q);
@@ -96,7 +107,7 @@ export default function Passport() {
          const q = query(
             collection(db, "missionSubmissions"),
             where("status", "==", "approved"),
-            where("userId", "==", user?.uid)
+            where("userId", "==", user?.uid),
          );
 
          const snapshot = await getDocs(q);
@@ -128,25 +139,90 @@ export default function Passport() {
    };
 
    const loadUserData = async (uid: string) => {
-      const q = query(collection(db, "checkins"), where("userId", "==", uid));
+      const userDoc = await getDoc(doc(db, "users", uid));
 
-      const snapshot = await getDocs(q);
+      if (userDoc.exists()) {
+         setUserData(userDoc.data());
+      } else {
+         await setDoc(doc(db, "users", uid), {
+            email: auth.currentUser?.email,
+            photoURL: "",
+         });
 
-      const data = snapshot.docs.map((doc) => ({
-         id: doc.id,
-         ...doc.data(),
-      })) as Checkin[];
+         setUserData({ photoURL: "" });
+      }
+   };
 
-      setCheckins(data);
+   const pickImage = async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+         mediaTypes: ImagePicker.MediaTypeOptions.Images,
+         allowsEditing: true,
+         aspect: [1, 1],
+         quality: 0.8,
+      });
+
+      if (!result.canceled) {
+         uploadImage(result.assets[0].uri);
+      }
+   };
+
+   const uploadImage = async (uri: string) => {
+      try {
+         const user = auth.currentUser;
+         if (!user) return;
+
+         const response = await fetch(uri);
+         const blob = await response.blob();
+
+         const storage = getStorage();
+         const storageRef = ref(storage, `profileImages/${user.uid}.jpg`);
+
+         await uploadBytes(storageRef, blob);
+
+         const downloadURL = await getDownloadURL(storageRef);
+
+         await setDoc(
+            doc(db, "users", user.uid),
+            { photoURL: downloadURL },
+            { merge: true },
+         );
+
+         setUserData((prev: any) => ({
+            ...prev,
+            photoURL: downloadURL,
+         }));
+      } catch (error) {
+         console.log("Upload error:", error);
+      }
    };
 
    return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+         <View style={styles.header}>
+            <Text style={styles.topic}>Passport</Text>
+
+            <TouchableOpacity onPress={handleLogout}>
+               <Ionicons name="log-out-outline" size={24} color="#e53935" />
+            </TouchableOpacity>
+         </View>
+
          {/* ===== PROFILE CARD ===== */}
          <View style={styles.profileCard}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-               <View style={styles.avatar}>
-                  <Text style={{ fontSize: 30 }}>👤</Text>
+               <View style={{ position: "relative" }}>
+                  <Image
+                     source={{
+                        uri:
+                           userData?.photoURL ||
+                           "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+                     }}
+                     style={styles.avatar}
+                  />
+
+                  {/* ปุ่มแก้ไข */}
+                  <TouchableOpacity style={styles.editIcon} onPress={pickImage}>
+                     <Ionicons name="pencil" size={16} color="#fff" />
+                  </TouchableOpacity>
                </View>
 
                <View style={{ marginLeft: 15 }}>
@@ -154,10 +230,6 @@ export default function Passport() {
                   <Text style={styles.subTag}>{getLevel(checkins.length)}</Text>
                </View>
             </View>
-
-            <TouchableOpacity onPress={handleLogout} style={{ padding: 8 }}>
-               <Ionicons name="log-out-outline" size={24} color="#e53935" />
-            </TouchableOpacity>
          </View>
 
          {/* ===== JOURNEY CARD ===== */}
@@ -201,6 +273,7 @@ export default function Passport() {
          </Text>
 
          <FlatList
+            scrollEnabled={false}
             key={columns}
             numColumns={columns}
             data={allBadges}
@@ -232,16 +305,28 @@ export default function Passport() {
                );
             }}
          />
-      </View>
+      </ScrollView>
    );
 }
 
 const styles = StyleSheet.create({
-   container: { flex: 1, padding: 20, backgroundColor: "#fff" },
+   container: { flex: 1, padding: 15, backgroundColor: "#fff" },
    title: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
    count: {
       fontSize: 16,
       marginBottom: 5,
+   },
+
+   header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+   },
+
+   topic: {
+      fontSize: 22,
+      fontWeight: "bold",
    },
 
    level: {
@@ -264,6 +349,18 @@ const styles = StyleSheet.create({
       height: 60,
       borderRadius: 30,
       backgroundColor: "#e0f2e9",
+      justifyContent: "center",
+      alignItems: "center",
+   },
+
+   editIcon: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      backgroundColor: "#16a34a",
+      width: 22,
+      height: 22,
+      borderRadius: 11,
       justifyContent: "center",
       alignItems: "center",
    },
