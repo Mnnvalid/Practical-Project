@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { db } from "../../firebase";
+import { onSnapshot } from "firebase/firestore";
 
 const auth = getAuth();
 
@@ -28,7 +29,7 @@ export default function MapPage() {
       setParks(data);
    };
 
-   const fetchCheckins = async () => {
+   const fetchCheckins = () => {
       const user = auth.currentUser;
 
       const q = query(
@@ -37,11 +38,10 @@ export default function MapPage() {
          where("status", "==", "approved"),
       );
 
-      const snapshot = await getDocs(q);
-
-      const parkIds = snapshot.docs.map((doc) => doc.data().parkId);
-
-      setApprovedParks(parkIds);
+      onSnapshot(q, (snapshot) => {
+         const parkIds = snapshot.docs.map((doc) => doc.data().parkId);
+         setApprovedParks(parkIds);
+      });
    };
 
    return (

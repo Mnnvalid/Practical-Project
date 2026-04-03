@@ -6,7 +6,7 @@ import {
    collection,
    doc,
    getDoc,
-   getDocs,
+   onSnapshot,
    query,
    setDoc,
    where,
@@ -24,109 +24,104 @@ import {
 } from "react-native";
 import { auth, db } from "../../firebase";
 
+const parkNames: Record<string, string> = {
+   khaoyai: "อุทยานแห่งชาติเขาใหญ่",
+   doi_inthanon: "อุทยานแห่งชาติดอยอินทนนท์",
+};
+
 type Checkin = {
    id: string;
    imageUrl: string;
    createdAt: any;
-   type: "checkin";
+   type: "checkin" | "location";
    status: "approved" | "pending";
+   parkId: string;
+};
+
+type Mission = {
+   id: string;
+   createdAt: any;
+   missionTitle: string;
+   type: "mission";
 };
 
 export default function Passport() {
-   const user = auth.currentUser;
-
    const [checkins, setCheckins] = useState<Checkin[]>([]);
    const [approvedMissions, setApprovedMissions] = useState(0);
-   const [missions, setMissions] = useState<any[]>([]);
+   const [missions, setMissions] = useState<Mission[]>([]);
    const [userData, setUserData] = useState<any>(null);
+   const [userEmail, setUserEmail] = useState<string>("");
 
    const columns = 2;
 
    useEffect(() => {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-         if (user) {
-            loadUserData(user.uid);
-         } else {
+      let unsubscribeCheckins: (() => void) | undefined;
+      let unsubscribeMissions: (() => void) | undefined;
+
+      const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+         if (!user) {
             setUserData(null);
+            setUserEmail("");
             setCheckins([]);
+            setMissions([]);
+            setApprovedMissions(0);
+            return;
          }
-      });
 
-      return unsubscribe;
-   }, []);
+         setUserEmail(user.email || "");
+         await loadUserData(user.uid);
 
-   useEffect(() => {
-      fetchApproved();
-   }, []);
-   const fetchApproved = async () => {
-      const q = query(
-         collection(db, "checkins"),
-         where("status", "==", "approved"),
-         where("userId", "==", user?.uid),
-      );
-
-      const snapshot = await getDocs(q);
-
-      const results: Checkin[] = snapshot.docs.map((doc) => {
-         const data = doc.data();
-
-         return {
-            id: doc.id,
-            imageUrl: data.imageUrl,
-            status: data.status,
-            createdAt: data.createdAt,
-            type: data.type,
-         };
-      });
-
-      setCheckins(results);
-   };
-
-   useEffect(() => {
-      const fetchApprovedMissions = async () => {
-         const q = query(
-            collection(db, "missionSubmissions"),
+         const checkinQuery = query(
+            collection(db, "checkins"),
             where("status", "==", "approved"),
-            where("userId", "==", user?.uid),
+            where("userId", "==", user.uid),
          );
 
-         const snapshot = await getDocs(q);
-         setApprovedMissions(snapshot.size);
-      };
+         unsubscribeCheckins = onSnapshot(checkinQuery, (snapshot) => {
+            const results: Checkin[] = snapshot.docs.map((doc) => {
+               const data = doc.data();
 
-      fetchApprovedMissions();
-   }, []);
+               return {
+                  id: doc.id,
+                  imageUrl: data.imageUrl || "",
+                  status: data.status,
+                  createdAt: data.createdAt,
+                  type: data.type || "checkin",
+                  parkId: data.parkId,
+               };
+            });
 
-   const approvedCheckins = checkins.filter((c) => c.status === "approved");
-
-   const totalProgress = approvedCheckins.length + missions.length;
-   const allBadges = [...checkins, ...missions];
-
-   useEffect(() => {
-      const fetchMissions = async () => {
-         const q = query(
-            collection(db, "missionSubmissions"),
-            where("status", "==", "approved"),
-            where("userId", "==", user?.uid),
-         );
-
-         const snapshot = await getDocs(q);
-
-         const results = snapshot.docs.map((doc) => {
-            const data = doc.data();
-
-            return {
-               id: doc.id,
-               createdAt: data.approvedAt,
-               missionTitle: data.missionTitle,
-               type: "mission",
-            };
+            setCheckins(results);
          });
 
-         setMissions(results);
-      };
+         const missionQuery = query(
+            collection(db, "missionSubmissions"),
+            where("status", "==", "approved"),
+            where("userId", "==", user.uid),
+         );
 
-      fetchMissions();
+         unsubscribeMissions = onSnapshot(missionQuery, (snapshot) => {
+            const results: Mission[] = snapshot.docs.map((doc) => {
+               const data = doc.data();
+
+               return {
+                  id: doc.id,
+                  createdAt: data.approvedAt || data.createdAt,
+                  missionTitle: data.missionTitle,
+                  type: "mission",
+               };
+            });
+
+            setMissions(results);
+            setApprovedMissions(snapshot.size);
+         });
+      });
+
+      return () => {
+         unsubscribeAuth();
+         if (unsubscribeCheckins) unsubscribeCheckins();
+         if (unsubscribeMissions) unsubscribeMissions();
+      };
    }, []);
 
    const handleLogout = async () => {
@@ -139,17 +134,24 @@ export default function Passport() {
    };
 
    const loadUserData = async (uid: string) => {
-      const userDoc = await getDoc(doc(db, "users", uid));
+      try {
+         const userDoc = await getDoc(doc(db, "users", uid));
 
-      if (userDoc.exists()) {
-         setUserData(userDoc.data());
-      } else {
-         await setDoc(doc(db, "users", uid), {
-            email: auth.currentUser?.email,
-            photoURL: "",
-         });
+         if (userDoc.exists()) {
+            setUserData(userDoc.data());
+         } else {
+            await setDoc(doc(db, "users", uid), {
+               email: auth.currentUser?.email || "",
+               photoURL: "",
+            });
 
-         setUserData({ photoURL: "" });
+            setUserData({
+               email: auth.currentUser?.email || "",
+               photoURL: "",
+            });
+         }
+      } catch (error) {
+         console.log("Load user error:", error);
       }
    };
 
@@ -196,6 +198,14 @@ export default function Passport() {
       }
    };
 
+   const approvedCheckins = checkins.filter((c) => c.status === "approved");
+   const totalProgress = approvedCheckins.length + missions.length;
+   const allBadges = [...checkins, ...missions].sort((a: any, b: any) => {
+      const aTime = a.createdAt?.seconds || 0;
+      const bTime = b.createdAt?.seconds || 0;
+      return bTime - aTime;
+   });
+
    return (
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
          <View style={styles.header}>
@@ -206,7 +216,6 @@ export default function Passport() {
             </TouchableOpacity>
          </View>
 
-         {/* ===== PROFILE CARD ===== */}
          <View style={styles.profileCard}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
                <View style={{ position: "relative" }}>
@@ -219,20 +228,20 @@ export default function Passport() {
                      style={styles.avatar}
                   />
 
-                  {/* ปุ่มแก้ไข */}
                   <TouchableOpacity style={styles.editIcon} onPress={pickImage}>
                      <Ionicons name="pencil" size={16} color="#fff" />
                   </TouchableOpacity>
                </View>
 
                <View style={{ marginLeft: 15 }}>
-                  <Text style={styles.username}>{user?.email}</Text>
-                  <Text style={styles.subTag}>{getLevel(checkins.length)}</Text>
+                  <Text style={styles.username}>{userEmail}</Text>
+                  <Text style={styles.subTag}>
+                     {getLevel(approvedCheckins.length)}
+                  </Text>
                </View>
             </View>
          </View>
 
-         {/* ===== JOURNEY CARD ===== */}
          <View style={styles.journeyCard}>
             <Text style={styles.journeyTitle}>เส้นทางนักผจญภัย</Text>
 
@@ -242,15 +251,12 @@ export default function Passport() {
             </Text>
 
             <View style={styles.progressBar}>
-               {/* Check-in */}
                <View
                   style={[
                      styles.checkinProgress,
                      { width: `${(approvedCheckins.length / 15) * 100}%` },
                   ]}
                />
-
-               {/* Mission */}
                <View
                   style={[
                      styles.missionProgress,
@@ -267,7 +273,6 @@ export default function Passport() {
             </View>
          </View>
 
-         {/* ===== STAMP SECTION ===== */}
          <Text style={styles.sectionTitle}>
             🚩 ตราประทับของคุณ ({totalProgress})
          </Text>
@@ -280,7 +285,7 @@ export default function Passport() {
             keyExtractor={(item) => item.id}
             columnWrapperStyle={{ justifyContent: "space-between" }}
             contentContainerStyle={{ paddingBottom: 100 }}
-            renderItem={({ item }) => {
+            renderItem={({ item }: any) => {
                const visitDate = item.createdAt?.toDate?.();
 
                return (
@@ -295,11 +300,13 @@ export default function Passport() {
                      />
 
                      <Text style={styles.verticalParkName}>
-                        {item.missionTitle || "อุทยานแห่งชาติเขาใหญ่"}
+                        {item.missionTitle ||
+                           parkNames[item.parkId] ||
+                           "National Park"}
                      </Text>
 
                      <Text style={styles.verticalDate}>
-                        📅 {visitDate?.toLocaleDateString("th-TH")}
+                        📅 {visitDate?.toLocaleDateString("th-TH") || "-"}
                      </Text>
                   </View>
                );
@@ -335,6 +342,7 @@ const styles = StyleSheet.create({
       marginBottom: 20,
       color: "#2e7d32",
    },
+
    profileCard: {
       backgroundColor: "#f4f4f4",
       borderRadius: 20,
@@ -405,12 +413,12 @@ const styles = StyleSheet.create({
 
    checkinProgress: {
       height: 8,
-      backgroundColor: "#f97316", // orange
+      backgroundColor: "#f97316",
    },
 
    missionProgress: {
       height: 8,
-      backgroundColor: "#facc15", // yellow
+      backgroundColor: "#facc15",
    },
 
    sectionTitle: {
@@ -426,7 +434,7 @@ const styles = StyleSheet.create({
       padding: 15,
       marginBottom: 15,
       alignItems: "center",
-      width: "48%", // สำคัญมาก สำหรับ 2 คอลัมน์
+      width: "48%",
       elevation: 3,
    },
 

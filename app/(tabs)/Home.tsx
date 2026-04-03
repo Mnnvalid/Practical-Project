@@ -34,12 +34,13 @@ export default function Home() {
    // 1️⃣ STATE (ตัวแปรเก็บข้อมูล)
    // ===============================
    const [selectedRegion, setSelectedRegion] = useState("ทั้งหมด");
-   const [showDetail, setShowDetail] = useState(false);
-   const [myCheckin, setMyCheckin] = useState<any>(null);
+   const [myCheckins, setMyCheckins] = useState<Record<string, any>>({});
    const [showCampaignDetail, setShowCampaignDetail] = useState(false);
    const [selectedMission, setSelectedMission] = useState<any>(null);
    const [approvedMissions, setApprovedMissions] = useState<string[]>([]);
-   const [canCheckinLocation, setCanCheckinLocation] = useState(false);
+   const [nearbyParkId, setNearbyParkId] = useState<string | null>(null);
+   const [searchText, setSearchText] = useState("");
+   const [expandedParkId, setExpandedParkId] = useState<string | null>(null);
 
    // ===============================
    // 2️⃣ DATA (ข้อมูล)
@@ -54,6 +55,8 @@ export default function Home() {
       quote: string;
       bestTime: string;
       highlight: string;
+      checkinRequirement: string;
+      images: any[];
    };
 
    const parks: Park[] = [
@@ -68,13 +71,46 @@ export default function Home() {
          bestTime: "สิงหาคม - กุมภาพันธ์",
          highlight:
             "น้ำตกเหวนรก, น้ำตกเหวสุวัต, น้ำตกผากล้วยไม้, จุดชมวิวผาเดียวดาย",
+         checkinRequirement: "รูปชูนิ้วโป้งที่จุดชมวิวผาเดียวดาย",
+         images: [
+            require("../../assets/images/khaoyai1.jpg"),
+            require("../../assets/images/khaoyai2.jpg"),
+            require("../../assets/images/khaoyai3.jpg"),
+         ],
       },
+      {
+         id: "doi_inthanon",
+         name: "อุทยานแห่งชาติดอยอินทนนท์",
+         province: "เชียงใหม่",
+         region: "เหนือ",
+         lat: 18.588,
+         lng: 98.487,
+         quote: "The Roof of Thailand.",
+         bestTime: "พฤศจิกายน - กุมภาพันธ์",
+         highlight:
+            "กิ่วแม่ปาน, พระมหาธาตุนภเมทนีดล, น้ำตกวชิรธาร, จุดสูงสุดแดนสยาม",
+         checkinRequirement: "รูปพระมหาธาตุฯ พร้อมวิวภูเขา",
+         images: [
+            require("../../assets/images/inthanon1.jpg"),
+            require("../../assets/images/inthanon2.jpg"),
+            require("../../assets/images/inthanon3.jpg"),
+         ],
+   },
    ];
 
-   const filteredParks =
-      selectedRegion === "ทั้งหมด"
-         ? parks
-         : parks.filter((p) => p.region === selectedRegion);
+   const filteredParks = parks.filter((park) => {
+      const matchRegion =
+         selectedRegion === "ทั้งหมด" || park.region === selectedRegion;
+
+      const keyword = searchText.trim().toLowerCase();
+
+      const matchSearch =
+         keyword === "" ||
+         park.name.toLowerCase().includes(keyword) ||
+         park.province.toLowerCase().includes(keyword);
+
+      return matchRegion && matchSearch;
+   });
 
    const campaign = {
       id: "camp_khaoyai_01",
@@ -99,16 +135,18 @@ export default function Home() {
          const q = query(
             collection(db, "checkins"),
             where("userId", "==", user.uid),
-            where("parkId", "==", "khaoyai"),
             where("status", "==", "approved"),
          );
 
          const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-            if (!snapshot.empty) {
-               setMyCheckin(snapshot.docs[0].data());
-            } else {
-               setMyCheckin(null);
-            }
+            const checkinMap: Record<string, any> = {};
+
+            snapshot.docs.forEach((doc) => {
+               const data = doc.data();
+               checkinMap[data.parkId] = data;
+            });
+
+            setMyCheckins(checkinMap);
          });
 
          return unsubscribeSnapshot;
@@ -143,7 +181,7 @@ export default function Home() {
    // ===============================
    // 4️⃣ FUNCTIONS (การทำงาน)
    // ===============================
-   const handleUpload = async () => {
+   const handleUpload = async (parkId: string) => {
       const user = auth.currentUser;
       if (!user) {
          alert("กรุณา login ก่อนอัปโหลด");
@@ -176,7 +214,7 @@ export default function Home() {
          await addDoc(collection(db, "checkins"), {
             imageUrl: downloadURL,
             status: "pending",
-            parkId: "khaoyai",
+            parkId: parkId,
             createdAt: serverTimestamp(),
             userId: user.uid,
             userEmail: user.email,
@@ -201,7 +239,7 @@ export default function Home() {
       }
    };
 
-   const handleAutoCheckin = async () => {
+   const handleAutoCheckin = async (parkId: string) => {
       const user = auth.currentUser;
       if (!user) {
          alert("กรุณา login ก่อน");
@@ -210,7 +248,7 @@ export default function Home() {
 
       try {
          await addDoc(collection(db, "checkins"), {
-            parkId: "khaoyai",
+            parkId: parkId,
             userId: user.uid,
             userEmail: user.email,
             status: "approved",
@@ -291,33 +329,38 @@ export default function Home() {
    };
 
    const checkLocation = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-         alert("ต้องอนุญาต location ก่อน");
-         return;
+   const { status } = await Location.requestForegroundPermissionsAsync();
+
+   if (status !== "granted") {
+      alert("ต้องอนุญาต location ก่อน");
+      return;
+   }
+
+      // ตำแหน่งจำลอง: ใกล้เขาใหญ่
+      const myLat = 14.311;
+      const myLng = 101.53;
+
+      console.log("Mock location for demo:", myLat, myLng);
+
+      // const location = await Location.getCurrentPositionAsync({});
+      // const myLat = location.coords.latitude;
+      // const myLng = location.coords.longitude;
+
+      // console.log("My real location:", myLat, myLng);
+
+      let matchedParkId: string | null = null;
+
+      for (const park of parks) {
+         const distance = getDistance(myLat, myLng, park.lat, park.lng);
+         console.log(`Distance to ${park.name}:`, distance, "km");
+
+         if (distance < 0.5) {
+            matchedParkId = park.id;
+            break;
+         }
       }
 
-      const location = await Location.getCurrentPositionAsync({});
-      console.log(
-         "My location:",
-         location.coords.latitude,
-         location.coords.longitude,
-      );
-
-      // พิกัดจากอุทยานแรกในลิสต์ (เขาใหญ่)
-      const parkLat = parks[0].lat;
-      const parkLng = parks[0].lng;
-
-      const distance = getDistance(
-         location.coords.latitude,
-         location.coords.longitude,
-         parkLat,
-         parkLng,
-      );
-
-      if (distance < 500) {
-         setCanCheckinLocation(true);
-      }
+      setNearbyParkId(matchedParkId);
    };
 
    const getDistance = (
@@ -351,6 +394,8 @@ export default function Home() {
                placeholder="ค้นหาอุทยาน or จังหวัด..."
                placeholderTextColor={"#b5c8be"}
                style={styles.search}
+               value={searchText}
+               onChangeText={setSearchText}
             />
 
             {/* 🟢 REGION BUTTONS */}
@@ -489,22 +534,13 @@ export default function Home() {
                      pagingEnabled
                      showsHorizontalScrollIndicator={false}
                   >
-                     <Image
-                        source={require("../../assets/images/khaoyai1.jpg")}
-                        style={styles.image}
-                     />
-                     <Image
-                        source={require("../../assets/images/khaoyai2.jpg")}
-                        style={styles.image}
-                     />
-                     <Image
-                        source={require("../../assets/images/khaoyai3.jpg")}
-                        style={styles.image}
-                     />
+                     {park.images.map((img, index) => (
+                        <Image key={index} source={img} style={styles.image} />
+                     ))}
                   </ScrollView>
 
                   {/* ยังไม่ไป = เบลอ */}
-                  {myCheckin?.status !== "approved" && (
+                  {myCheckins[park.id]?.status !== "approved" && (
                      <BlurView intensity={40} style={styles.blurOverlay}>
                         <Text style={styles.blurText}>
                            🏆 Challenge: อัปโหลดรูปเพื่อปลดล็อค
@@ -524,27 +560,34 @@ export default function Home() {
 
                      {/* ปุ่มรายละเอียดเพิ่มเติม */}
                      <TouchableOpacity
-                        onPress={() => setShowDetail(!showDetail)}
+                        onPress={() =>
+                           setExpandedParkId(expandedParkId === park.id ? null : park.id)
+                        }
                      >
                         <Text style={styles.moreDetail}>
-                           {showDetail
+                           {expandedParkId === park.id
                               ? "ซ่อนรายละเอียด ▲"
                               : "รายละเอียดเพิ่มเติม ▼"}
                         </Text>
                      </TouchableOpacity>
 
                      {/* กล่องรายละเอียด */}
-                     {showDetail && (
+                     {expandedParkId === park.id && (
                         <View style={styles.detailBox}>
-                           <Text>ช่วงน่าเที่ยว: {park.bestTime}</Text>
+                           <Text>
+                              ช่วงน่าเที่ยว: {park.bestTime}
+                           </Text>
                            <Text style={{ marginTop: 5 }}>
                               ไฮไลต์: {park.highlight}
+                           </Text>
+                           <Text style={{ marginTop: 5 }}>
+                              เงื่อนไข Check-in 📸 : {park.checkinRequirement}
                            </Text>
                         </View>
                      )}
 
                      {/* ปุ่ม Check-in */}
-                     {canCheckinLocation && !myCheckin && (
+                     {nearbyParkId === park.id && !myCheckins[park.id] && (
                         <TouchableOpacity
                            style={{
                               backgroundColor: "#1e7f3f",
@@ -553,7 +596,7 @@ export default function Home() {
                               marginTop: 10,
                               alignItems: "center",
                            }}
-                           onPress={handleAutoCheckin}
+                           onPress={() => handleAutoCheckin(park.id)}
                         >
                            <Text style={{ color: "white", fontWeight: "bold" }}>
                               📍 Auto Check-in
@@ -561,10 +604,10 @@ export default function Home() {
                         </TouchableOpacity>
                      )}
 
-                     {myCheckin?.status !== "approved" && (
+                     {myCheckins[park.id]?.status !== "approved" && (
                         <TouchableOpacity
                            style={styles.uploadButton}
-                           onPress={handleUpload}
+                           onPress={() => handleUpload(park.id)}
                         >
                            <Text style={{ color: "#1e7f3f" }}>
                               📷 อัปโหลดรูป Check-in
@@ -661,7 +704,7 @@ const styles = StyleSheet.create({
       fontSize: 16,
    },
    card: {
-      backgroundColor: "#fff",
+      backgroundColor: "#f5f6f4",
       margin: 15,
       borderRadius: 15,
       overflow: "hidden",
